@@ -30,7 +30,8 @@ void ejecutacomandos(char *texto) {
             fprintf(stderr, "%s", error_message);
         } else {
             if (chdir(argayu[1]) != 0) {
-                fprintf(stderr, "%s", error_message);
+                fprintf(stderr, "%s", error_message); 
+		exit(0);
             }
         }
         return; // No seguir con execvp
@@ -38,24 +39,31 @@ void ejecutacomandos(char *texto) {
 
     // Tokenizar la línea para obtener los argumentos y detectar ">"
     char *comando = strtok(texto, " ");
+    int contador=0;
+    int cuentamper=1;
+    int cuentaposicion=0;
     while (comando != NULL) {
-        if (strcmp(comando, ">") == 0) {
+        if (strcmp(comando, ">") == 0&&contador>0) {
             redirigir_salida = true;
             comando = strtok(NULL, " ");
             if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
                 fprintf(stderr, "%s", error_message);
-                return;
+                exit(0); 
             }
             archivo_salida = comando;
             break;
-        }
+        }else if(strcmp(comando, "&")==0 && contador>0){
+		cuentamper++;
+
+	}
         argayu[i++] = comando;
         comando = strtok(NULL, " ");
+	contador++;
     }
     argayu[i] = NULL;
 
     if (argayu[0] == NULL) return; // No hay comando
-
+    for(int i=0;i<cuentamper;i++){
     // Crear proceso hijo para ejecutar el comando
     pid_t pid = fork();
     if (pid == 0) { // Proceso hijo
@@ -63,20 +71,27 @@ void ejecutacomandos(char *texto) {
             int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
                 fprintf(stderr, "%s", error_message);
-                exit(1);
+                exit(0);
             }
             dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
             close(fd);
         }
 
-        execvp(argayu[0], argayu);
+        execvp(argayu[cuentaposicion], argayu);
         fprintf(stderr, "%s", error_message); // Si execvp falla
-        exit(1);
+        exit(0);
     } else if (pid > 0) { // Proceso padre
         int status;
         waitpid(pid, &status, 0);
     } else {
         fprintf(stderr, "%s", error_message);
+	exit(0);
+    }
+	if(redirigir_salida){
+	cuentaposicion=cuentaposicion+4;
+	}else{
+	cuentaposicion=cuentaposicion+2;
+	}
     }
 }
 
