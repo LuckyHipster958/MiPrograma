@@ -13,6 +13,7 @@ void ejecutacomandos(char *texto) {
     int i = 0;
     bool redirigir_salida = false;
     char *archivo_salida = NULL;
+    bool en_segundo_plano = false;
 
     if (texto[strlen(texto) - 1] == '\n') {
         texto[strlen(texto) - 1] = '\0';
@@ -30,40 +31,34 @@ void ejecutacomandos(char *texto) {
             fprintf(stderr, "%s", error_message);
         } else {
             if (chdir(argayu[1]) != 0) {
-                fprintf(stderr, "%s", error_message); 
-		exit(0);
+                fprintf(stderr, "%s", error_message);
             }
         }
         return; // No seguir con execvp
     }
 
-    // Tokenizar la línea para obtener los argumentos y detectar ">"
+    // Tokenizar la línea para obtener los argumentos y detectar ">" y "&"
     char *comando = strtok(texto, " ");
-    int contador=0;
-    int cuentamper=1;
-    int cuentaposicion=0;
     while (comando != NULL) {
-        if (strcmp(comando, ">") == 0&&contador>0) {
+        if (strcmp(comando, ">") == 0) {
             redirigir_salida = true;
             comando = strtok(NULL, " ");
-            if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
+            if (comando == NULL || strtok(NULL, " ") != NULL) {
                 fprintf(stderr, "%s", error_message);
-                exit(0); 
+                return;
             }
             archivo_salida = comando;
-            break;
-        }else if(strcmp(comando, "&")==0 && contador>0){
-		cuentamper++;
-
-	}
-        argayu[i++] = comando;
+        } else if (strcmp(comando, "&") == 0) {
+            en_segundo_plano = true;
+        } else {
+            argayu[i++] = comando;
+        }
         comando = strtok(NULL, " ");
-	contador++;
     }
     argayu[i] = NULL;
 
     if (argayu[0] == NULL) return; // No hay comando
-    for(int i=0;i<cuentamper;i++){
+
     // Crear proceso hijo para ejecutar el comando
     pid_t pid = fork();
     if (pid == 0) { // Proceso hijo
@@ -71,27 +66,22 @@ void ejecutacomandos(char *texto) {
             int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
                 fprintf(stderr, "%s", error_message);
-                exit(0);
+                exit(1);
             }
             dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
             close(fd);
         }
 
-        execvp(argayu[cuentaposicion], argayu);
+        execvp(argayu[0], argayu);
         fprintf(stderr, "%s", error_message); // Si execvp falla
-        exit(0);
+        exit(1);
     } else if (pid > 0) { // Proceso padre
-        int status;
-        waitpid(pid, &status, 0);
+        if (!en_segundo_plano) {
+            int status;
+            waitpid(pid, &status, 0); // Esperar solo si no está en segundo plano
+        }
     } else {
         fprintf(stderr, "%s", error_message);
-	exit(0);
-    }
-	if(redirigir_salida){
-	cuentaposicion=cuentaposicion+4;
-	}else{
-	cuentaposicion=cuentaposicion+2;
-	}
     }
 }
 
@@ -144,3 +134,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
