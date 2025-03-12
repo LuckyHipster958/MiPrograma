@@ -43,18 +43,51 @@ void ejecutacomandos(char* texto) {
 
     // Si no hay comando, salir
     if (argayu[0] == NULL) return;
-
+    char *otrayuda=argayu[1];
+    if (otrayuda==NULL||(access(otrayuda, F_OK )== 0)||otrayuda[0]=='-'||otrayuda[0]=='/'||otrayuda[0]=='>'){
+    if(otrayuda[0]=='>'){
+	    if(argayu[2]!=NULL){
+	    FILE *fich=fopen(argayu[2],"w");
+	    int fd=fileno(fich);
+	    dup2(fd, STDOUT_FILENO); 
+	    pid_t pid = fork();
+    		if (pid == 0) { // Proceso hijo
+        	execvp(argayu[0], argayu);
+        	fprintf(stderr, "%s", error_message); // Solo se imprime si execvp falla
+        	exit(1);
+    	} else if (pid > 0) { // Proceso padre
+       	 int status;
+		waitpid(pid, &status, 0);
+		if(WIFEXITED(status)&&WEXITSTATUS(status)!=0){
+			exit(0);
+			}
+    		} else {
+        	fprintf(stderr, "%s", error_message);
+    		}
+	    }else{
+	    fprintf(stderr, "%s",error_message);
+	    }
+    }else{
     pid_t pid = fork();
     if (pid == 0) { // Proceso hijo
         execvp(argayu[0], argayu);
         fprintf(stderr, "%s", error_message); // Solo se imprime si execvp falla
         exit(1);
     } else if (pid > 0) { // Proceso padre
-        wait(NULL);
+        int status;
+	waitpid(pid, &status, 0);
+	if(WIFEXITED(status)&&WEXITSTATUS(status)!=0){
+		exit(0);
+	}
     } else {
         fprintf(stderr, "%s", error_message);
     }
-}
+    }
+    }else {
+        fprintf(stderr, "%s", error_message);
+    }
+
+    }
 
 int main(int argc, char *argv[]) {
     if (argc == 1) { // Modo interactivo
@@ -79,7 +112,7 @@ int main(int argc, char *argv[]) {
         FILE *fichero = fopen(argv[1], "r");
         if (fichero == NULL) {
             fprintf(stderr, "%s", error_message);
-            exit(1);
+            exit(0);
         }
 
         char *texto = NULL;
@@ -98,7 +131,7 @@ int main(int argc, char *argv[]) {
         fclose(fichero);
     } else {
         fprintf(stderr, "%s", error_message);
-        exit(1);
+        exit(0);
     }
 
     return 0;
