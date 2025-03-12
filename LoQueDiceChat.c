@@ -13,7 +13,6 @@ void ejecutacomandos(char *texto) {
     int i = 0;
     bool redirigir_salida = false;
     char *archivo_salida = NULL;
-    bool en_segundo_plano = false;
 
     if (texto[strlen(texto) - 1] == '\n') {
         texto[strlen(texto) - 1] = '\0';
@@ -32,6 +31,7 @@ void ejecutacomandos(char *texto) {
         } else {
             if (chdir(argayu[1]) != 0) {
                 fprintf(stderr, "%s", error_message);
+                exit(1);
             }
         }
         return; // No seguir con execvp
@@ -39,50 +39,56 @@ void ejecutacomandos(char *texto) {
 
     // Tokenizar la línea para obtener los argumentos y detectar ">" y "&"
     char *comando = strtok(texto, " ");
+    int contador = 0;
+    int cuentamper = 1;
+
     while (comando != NULL) {
-        if (strcmp(comando, ">") == 0) {
+        if (strcmp(comando, ">") == 0 && contador > 0) {
             redirigir_salida = true;
             comando = strtok(NULL, " ");
             if (comando == NULL || strtok(NULL, " ") != NULL) {
                 fprintf(stderr, "%s", error_message);
-                return;
+                exit(1);
             }
             archivo_salida = comando;
-        } else if (strcmp(comando, "&") == 0) {
-            en_segundo_plano = true;
+            break;
+        } else if (strcmp(comando, "&") == 0 && contador > 0) {
+            cuentamper++;
         } else {
             argayu[i++] = comando;
         }
         comando = strtok(NULL, " ");
+        contador++;
     }
     argayu[i] = NULL;
 
     if (argayu[0] == NULL) return; // No hay comando
 
-    // Crear proceso hijo para ejecutar el comando
-    pid_t pid = fork();
-    if (pid == 0) { // Proceso hijo
-        if (redirigir_salida) {
-            int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) {
-                fprintf(stderr, "%s", error_message);
-                exit(1);
+    // Crear un proceso hijo para cada comando
+    for (int j = 0; j < cuentamper; j++) {
+        pid_t pid = fork();
+        if (pid == 0) { // Proceso hijo
+            if (redirigir_salida) {
+                int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_APPEND, 0644);
+                if (fd < 0) {
+                    fprintf(stderr, "%s", error_message);
+                    exit(1);
+                }
+                dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+                close(fd);
             }
-            dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
-            close(fd);
-        }
 
-        execvp(argayu[0], argayu);
-        fprintf(stderr, "%s", error_message); // Si execvp falla
-        exit(1);
-    } else if (pid > 0) { // Proceso padre
-        if (!en_segundo_plano) {
-            int status;
-            waitpid(pid, &status, 0); // Esperar solo si no está en segundo plano
+            execvp(argayu[0], argayu);
+            fprintf(stderr, "%s", error_message); // Si execvp falla
+            exit(1);
+        } else if (pid < 0) {
+            fprintf(stderr, "%s", error_message);
+            exit(1);
         }
-    } else {
-        fprintf(stderr, "%s", error_message);
     }
+
+    // Esperar a todos los hijos al final
+    while (wait(NULL) > 0);
 }
 
 int main(int argc, char *argv[]) {
@@ -134,4 +140,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
