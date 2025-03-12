@@ -4,12 +4,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 char error_message[] = "An error has occurred\n";
 
-void ejecutacomandos(char* texto) {
+void ejecutacomandos(char *texto) {
     char *argayu[12] = {NULL};
     int i = 0;
+    bool redirigir_salida = false;
+    char *archivo_salida = NULL;
 
     if (texto[strlen(texto) - 1] == '\n') {
         texto[strlen(texto) - 1] = '\0';
@@ -33,61 +36,49 @@ void ejecutacomandos(char* texto) {
         return; // No seguir con execvp
     }
 
-    // Tokenizar la línea para obtener los argumentos
+    // Tokenizar la línea para obtener los argumentos y detectar ">"
     char *comando = strtok(texto, " ");
     while (comando != NULL) {
+        if (strcmp(comando, ">") == 0) {
+            redirigir_salida = true;
+            comando = strtok(NULL, " ");
+            if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
+                fprintf(stderr, "%s", error_message);
+                return;
+            }
+            archivo_salida = comando;
+            break;
+        }
         argayu[i++] = comando;
         comando = strtok(NULL, " ");
     }
     argayu[i] = NULL;
 
-    // Si no hay comando, salir
-    if (argayu[0] == NULL) return;
-    char *otrayuda=argayu[1];
-    if (otrayuda==NULL||(access(otrayuda, F_OK )== 0)||otrayuda[0]=='-'||otrayuda[0]=='/'||otrayuda[0]=='>'){
-    if(otrayuda[0]=='>'){
-	    if(argayu[2]!=NULL){
-	    FILE *fich=fopen(argayu[2],"w");
-	    int fd=fileno(fich);
-	    dup2(fd, STDOUT_FILENO); 
-	    pid_t pid = fork();
-    		if (pid == 0) { // Proceso hijo
-        	execvp(argayu[0], argayu);
-        	fprintf(stderr, "%s", error_message); // Solo se imprime si execvp falla
-        	exit(1);
-    	} else if (pid > 0) { // Proceso padre
-       	 int status;
-		waitpid(pid, &status, 0);
-		if(WIFEXITED(status)&&WEXITSTATUS(status)!=0){
-			exit(0);
-			}
-    		} else {
-        	fprintf(stderr, "%s", error_message);
-    		}
-	    }else{
-	    fprintf(stderr, "%s",error_message);
-	    }
-    }else{
+    if (argayu[0] == NULL) return; // No hay comando
+
+    // Crear proceso hijo para ejecutar el comando
     pid_t pid = fork();
     if (pid == 0) { // Proceso hijo
+        if (redirigir_salida) {
+            int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                fprintf(stderr, "%s", error_message);
+                exit(1);
+            }
+            dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+            close(fd);
+        }
+
         execvp(argayu[0], argayu);
-        fprintf(stderr, "%s", error_message); // Solo se imprime si execvp falla
+        fprintf(stderr, "%s", error_message); // Si execvp falla
         exit(1);
     } else if (pid > 0) { // Proceso padre
         int status;
-	waitpid(pid, &status, 0);
-	if(WIFEXITED(status)&&WEXITSTATUS(status)!=0){
-		exit(0);
-	}
+        waitpid(pid, &status, 0);
     } else {
         fprintf(stderr, "%s", error_message);
     }
-    }
-    }else {
-        fprintf(stderr, "%s", error_message);
-    }
-
-    }
+}
 
 int main(int argc, char *argv[]) {
     if (argc == 1) { // Modo interactivo
@@ -97,6 +88,8 @@ int main(int argc, char *argv[]) {
 
         while (true) {
             printf("UVash> ");
+            fflush(stdout);
+
             nread = getline(&texto, &line, stdin);
             if (nread == -1) break; // Detectar EOF
 
@@ -112,7 +105,7 @@ int main(int argc, char *argv[]) {
         FILE *fichero = fopen(argv[1], "r");
         if (fichero == NULL) {
             fprintf(stderr, "%s", error_message);
-            exit(0);
+            exit(1);
         }
 
         char *texto = NULL;
@@ -131,7 +124,7 @@ int main(int argc, char *argv[]) {
         fclose(fichero);
     } else {
         fprintf(stderr, "%s", error_message);
-        exit(0);
+        exit(1);
     }
 
     return 0;
