@@ -8,74 +8,94 @@
 
 char error_message[] = "An error has occurred\n";
 
-void ejecutar_comando(char *comando, bool redirigir_salida, char *archivo_salida) {
+// Función para ejecutar comandos
+void ejecutacomandos(char *texto) {
     char *argayu[12] = {NULL};
     int i = 0;
-    char *token = strtok(comando, " ");
+    bool redirigir_salida = false;
+    char *archivo_salida = NULL;
 
-    while (token != NULL) {
-        argayu[i++] = token;
-        token = strtok(NULL, " ");
+    if (texto[strlen(texto) - 1] == '\n') {
+        texto[strlen(texto) - 1] = '\0';
+    }
+
+    // Manejo especial del comando "cd"
+    if (strncmp(texto, "cd", 2) == 0) {
+        char *comando = strtok(texto, " ");
+        while (comando != NULL) {
+            argayu[i++] = comando;
+            comando = strtok(NULL, " ");
+        }
+
+        if (argayu[1] == NULL || argayu[2] != NULL) {
+            fprintf(stderr, "%s", error_message);
+        } else {
+            if (chdir(argayu[1]) != 0) {
+                fprintf(stderr, "%s", error_message);
+                exit(0);
+            }
+        }
+        return; // No seguir con execvp
+    }
+
+    // Tokenizar la línea para obtener los argumentos y detectar ">"
+    char *comando = strtok(texto, " ");
+    int contador = 0;
+    int cuentamper = 1;
+    int cuentaposicion = 0;
+    
+    while (comando != NULL) {
+        if (strcmp(comando, ">") == 0 && contador > 0) {
+            redirigir_salida = true;
+            comando = strtok(NULL, " ");
+            if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
+                fprintf(stderr, "%s", error_message);
+                exit(0);
+            }
+            archivo_salida = comando;
+            break;
+        } else if (strcmp(comando, "&") == 0 && contador > 0) {
+            cuentamper++;
+        }
+
+        argayu[i++] = comando;
+        comando = strtok(NULL, " ");
+        contador++;
     }
     argayu[i] = NULL;
 
     if (argayu[0] == NULL) return; // No hay comando
 
-    pid_t pid = fork();
-    if (pid == 0) { // Proceso hijo
+    for (int j = 0; j < cuentamper; j++) {
+        // Crear proceso hijo para ejecutar el comando
+        pid_t pid = fork();
+        if (pid == 0) { // Proceso hijo
+            if (redirigir_salida) {
+                int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd < 0) {
+                    fprintf(stderr, "%s", error_message);
+                    exit(0);
+                }
+                dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+                dup2(fd, STDERR_FILENO); // Redirigir salida de error al archivo
+                close(fd);
+            }
+
+            execvp(argayu[cuentaposicion], argayu);
+            fprintf(stderr, "%s", error_message); // Si execvp falla
+            exit(0);
+        } else if (pid > 0) { // Proceso padre
+            int status;
+            waitpid(pid, &status, 0);
+        } else {
+            fprintf(stderr, "%s", error_message);
+            exit(0);
+        }
+
+        cuentaposicion += 2; // Avanzar en los argumentos para el siguiente comando
         if (redirigir_salida) {
-            int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) {
-                perror("Error al abrir archivo de salida");
-                exit(1);
-            }
-            dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
-            close(fd);
+            cuentaposicion += 2;
         }
-
-        execvp(argayu[0], argayu);
-        perror("Error al ejecutar comando"); // Si execvp falla
-        exit(1);
-    } else if (pid < 0) {
-        perror("Error al crear proceso hijo");
-        exit(1);
-    }
-}
-
-void ejecutacomandos(char *texto) {
-    char *comando = strtok(texto, "&");
-    int cuentamper = 0;
-    bool redirigir_salida = false;
-    char *archivo_salida = NULL;
-
-    while (comando != NULL) {
-        cuentamper++;
-
-        // Verificar si hay redirección
-        char *redir_out = strstr(comando, ">");
-        if (redir_out != NULL) {
-            redirigir_salida = true;
-            *redir_out = '\0'; // Eliminar ">" de la cadena
-            comando = strtok(NULL, " ");
-            if (comando != NULL) {
-                archivo_salida = comando;
-            }
-        }
-
-        // Crear un proceso hijo para ejecutar el comando
-        ejecutar_comando(comando, redirigir_salida, archivo_salida);
-
-        // Resetear valores para el siguiente comando
-        redirigir_salida = false;
-        archivo_salida = NULL;
-
-        // Pasar al siguiente comando
-        comando = strtok(NULL, "&");
-    }
-
-    // Esperar a que todos los procesos hijos terminen
-    for (int i = 0; i < cuentamper; i++) {
-        wait(NULL);
     }
 }
 
