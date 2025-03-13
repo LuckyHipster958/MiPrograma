@@ -16,7 +16,7 @@ void ejecutacomandos(char *texto) {
     bool comandos_paralelos = false;
 
     if (texto[strlen(texto) - 1] == '\n') {
-        texto[strlen(texto) - 1] = '\0';
+        texto[strlen(texto) - 1] = '\0'; // Eliminar nueva línea al final
     }
 
     // Manejo especial del comando "cd"
@@ -48,7 +48,7 @@ void ejecutacomandos(char *texto) {
             comando = strtok(NULL, " ");
             if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
                 fprintf(stderr, "%s", error_message);
-                exit(0);
+                return;
             }
             archivo_salida = comando;
             break;
@@ -173,4 +173,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
