@@ -64,14 +64,10 @@ void ejecutacomandos(char *texto) {
 
     if (argayu[0] == NULL) return; // No hay comando
 
-    // Crear un array de procesos
-    pid_t procesos[cuentamper + 1];
-
     // Ejecutar los comandos en paralelo
     for (int j = 0; j <= cuentamper; j++) {
         pid_t pid = fork();
         if (pid == 0) { // Proceso hijo
-            // Verificar si este proceso tiene redirección
             if (redirigir_salida) {
                 int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                 if (fd < 0) {
@@ -83,12 +79,12 @@ void ejecutacomandos(char *texto) {
                 close(fd);
             }
 
-            // Ejecutar el comando con execvp
             execvp(argayu[cuentaposicion], argayu);
             fprintf(stderr, "%s", error_message); // Si execvp falla
             exit(1);
         } else if (pid > 0) { // Proceso padre
-            procesos[j] = pid;
+            int status;
+            waitpid(pid, &status, 0);
         } else {
             fprintf(stderr, "%s", error_message);
             exit(1);
@@ -98,11 +94,6 @@ void ejecutacomandos(char *texto) {
         if (redirigir_salida) {
             cuentaposicion++; // Avanzar si hay redirección
         }
-    }
-
-    // Esperar a que todos los procesos hijos terminen
-    for (int j = 0; j <= cuentamper; j++) {
-        waitpid(procesos[j], NULL, 0);
     }
 }
 
@@ -155,6 +146,7 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
 
 
 
