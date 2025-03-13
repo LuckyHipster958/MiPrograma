@@ -9,86 +9,80 @@
 char error_message[] = "An error has occurred\n";
 
 void ejecutacomandos(char *texto) {
-    char *argayu[12] = {NULL};
-    int i = 0;
+    char *argayu[12]; // Se debe inicializar dentro del bucle para evitar sobrescribir
     bool redirigir_salida = false;
     char *archivo_salida = NULL;
-    bool ejecutar_en_fondo = false;  // Para detectar si el proceso es en segundo plano
+    bool ejecutar_en_fondo = false;
 
+    // Eliminar salto de línea si está presente al final de la entrada
     if (texto[strlen(texto) - 1] == '\n') {
         texto[strlen(texto) - 1] = '\0';
     }
 
-    // Manejo especial del comando "cd"
-    if (strncmp(texto, "cd", 2) == 0) {
-        char *comando = strtok(texto, " ");
-        while (comando != NULL) {
-            argayu[i++] = comando;
-            comando = strtok(NULL, " ");
-        }
-
-        if (argayu[1] == NULL || argayu[2] != NULL) {
-            fprintf(stderr, "%s", error_message);
-        } else {
-            if (chdir(argayu[1]) != 0) {
-                fprintf(stderr, "%s", error_message); 
-                exit(0);
-            }
-        }
-        return; // No seguir con execvp
-    }
-
-    // Tokenizar la línea para obtener los argumentos y detectar ">" y "&"
-    char *comando = strtok(texto, " ");
-    int contador = 0;
+    // Dividir los comandos si hay múltiples comandos separados por '&'
+    char *comando = strtok(texto, "&");
     while (comando != NULL) {
-        if (strcmp(comando, ">") == 0 && contador > 0) {
-            redirigir_salida = true;
-            comando = strtok(NULL, " ");
-            if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
-                fprintf(stderr, "%s", error_message);
-                exit(0); 
+        int i = 0;
+        bool redirigir_salida = false;
+        char *archivo_salida = NULL;
+
+        // Procesar cada comando individualmente
+        char *token = strtok(comando, " "); // Tokenizar el comando por espacios
+        int contador = 0;
+        while (token != NULL) {
+            if (strcmp(token, ">") == 0) {
+                // Si encontramos ">", es redirección de salida
+                redirigir_salida = true;
+                token = strtok(NULL, " ");
+                if (token == NULL || strtok(NULL, " ") != NULL) {
+                    // Si no hay archivo o hay más de un argumento después de ">", error
+                    fprintf(stderr, "%s", error_message);
+                    exit(0);
+                }
+                archivo_salida = token;
+                break;
             }
-            archivo_salida = comando;
-            break;
-        } else if (strcmp(comando, "&") == 0 && contador > 0) {
-            ejecutar_en_fondo = true;  // Detectar si el proceso debe ejecutarse en segundo plano
-            break;  // Ya no se procesan más comandos después de "&"
+            argayu[i++] = token; // Guardamos el comando y sus argumentos
+            token = strtok(NULL, " ");
+            contador++;
         }
 
-        argayu[i++] = comando;
-        comando = strtok(NULL, " ");
-        contador++;
-    }
-    argayu[i] = NULL;
+        argayu[i] = NULL;
 
-    if (argayu[0] == NULL) return; // No hay comando
+        if (argayu[0] == NULL) {
+            // Si no hay comando, pasamos al siguiente
+            return;
+        }
 
-    pid_t pid = fork();
-    if (pid == 0) { // Proceso hijo
-        // Si hay redirección de salida, hacerlo aquí
-        if (redirigir_salida) {
-            int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) {
-                fprintf(stderr, "%s", error_message);
-                exit(0);
+        pid_t pid = fork();
+        if (pid == 0) { // Proceso hijo
+            // Si hay redirección de salida, hacerlo aquí
+            if (redirigir_salida) {
+                int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd < 0) {
+                    fprintf(stderr, "%s", error_message);
+                    exit(0);
+                }
+                dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+                close(fd);
             }
-            dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
-            close(fd);
+
+            execvp(argayu[0], argayu); // Ejecutar el comando
+            fprintf(stderr, "%s", error_message); // Si execvp falla
+            exit(0);
+        } else if (pid > 0) { // Proceso padre
+            if (!ejecutar_en_fondo) {
+                // Si no es un proceso en segundo plano, esperar a que termine
+                int status;
+                waitpid(pid, &status, 0);
+            }
+        } else {
+            fprintf(stderr, "%s", error_message);
+            exit(0);
         }
 
-        execvp(argayu[0], argayu); // Ejecutar el comando
-        fprintf(stderr, "%s", error_message); // Si execvp falla
-        exit(0);
-    } else if (pid > 0) { // Proceso padre
-        if (!ejecutar_en_fondo) {
-            // Esperar solo si no es un proceso en segundo plano
-            int status;
-            waitpid(pid, &status, 0);
-        }
-    } else {
-        fprintf(stderr, "%s", error_message);
-        exit(0);
+        // Continuar con el siguiente comando si es en segundo plano
+        comando = strtok(NULL, "&");  // Continuamos con el siguiente comando
     }
 }
 
@@ -141,4 +135,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
