@@ -14,6 +14,7 @@ void ejecutacomandos(char *texto) {
     int i = 0;
     bool redirigir_salida = false;
     char *archivo_salida = NULL;
+    int cuentamper = 0;
 
     if (texto[strlen(texto) - 1] == '\n') {
         texto[strlen(texto) - 1] = '\0';
@@ -32,7 +33,6 @@ void ejecutacomandos(char *texto) {
         } else {
             if (chdir(argayu[1]) != 0) {
                 fprintf(stderr, "%s", error_message);
-                exit(0);
             }
         }
         return; // No seguir con execvp
@@ -41,21 +41,19 @@ void ejecutacomandos(char *texto) {
     // Tokenizar la línea para obtener los argumentos y detectar ">"
     char *comando = strtok(texto, " ");
     int contador = 0;
-    int cuentamper = 1;
     int cuentaposicion = 0;
-    
     while (comando != NULL) {
         if (strcmp(comando, ">") == 0 && contador > 0) {
             redirigir_salida = true;
             comando = strtok(NULL, " ");
             if (comando == NULL || strtok(NULL, " ") != NULL) { // Verificar que hay un solo archivo
                 fprintf(stderr, "%s", error_message);
-                exit(0);
+                return; // Detener ejecución si hay error
             }
             archivo_salida = comando;
             break;
-        } else if (strcmp(comando, "&") == 0 && contador > 0) {
-            cuentamper++;
+        } else if (strcmp(comando, "&") == 0) {
+            cuentamper++;  // Contar comandos paralelos
         }
 
         argayu[i++] = comando;
@@ -66,36 +64,45 @@ void ejecutacomandos(char *texto) {
 
     if (argayu[0] == NULL) return; // No hay comando
 
-    for (int j = 0; j < cuentamper; j++) {
-        // Crear proceso hijo para ejecutar el comando
+    // Crear un array de procesos
+    pid_t procesos[cuentamper + 1];
+
+    // Ejecutar los comandos en paralelo
+    for (int j = 0; j <= cuentamper; j++) {
         pid_t pid = fork();
         if (pid == 0) { // Proceso hijo
+            // Verificar si este proceso tiene redirección
             if (redirigir_salida) {
                 int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                 if (fd < 0) {
                     fprintf(stderr, "%s", error_message);
-                    exit(0);
+                    exit(1);
                 }
                 dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
                 dup2(fd, STDERR_FILENO); // Redirigir salida de error al archivo
                 close(fd);
             }
 
+            // Ejecutar el comando con execvp
             execvp(argayu[cuentaposicion], argayu);
             fprintf(stderr, "%s", error_message); // Si execvp falla
-            exit(0);
+            exit(1);
         } else if (pid > 0) { // Proceso padre
-            int status;
-            waitpid(pid, &status, 0);
+            procesos[j] = pid;
         } else {
             fprintf(stderr, "%s", error_message);
-            exit(0);
+            exit(1);
         }
 
-        cuentaposicion += 2; // Avanzar en los argumentos para el siguiente comando
+        cuentaposicion++; // Avanzar para el siguiente comando en paralelo
         if (redirigir_salida) {
-            cuentaposicion += 2;
+            cuentaposicion++; // Avanzar si hay redirección
         }
+    }
+
+    // Esperar a que todos los procesos hijos terminen
+    for (int j = 0; j <= cuentamper; j++) {
+        waitpid(procesos[j], NULL, 0);
     }
 }
 
@@ -148,4 +155,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
 
