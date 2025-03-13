@@ -8,7 +8,7 @@
 
 char error_message[] = "An error has occurred\n";
 
-void ejecutacomandos(char *texto) {
+void ejecutacomando(char *texto) {
     char *argayu[12] = {NULL};
     int i = 0;
     bool redirigir_salida = false;
@@ -31,64 +31,73 @@ void ejecutacomandos(char *texto) {
         } else {
             if (chdir(argayu[1]) != 0) {
                 fprintf(stderr, "%s", error_message);
-                exit(1);
             }
         }
-        return; // No seguir con execvp
+        return;
     }
 
-    // Tokenizar la línea para obtener los argumentos y detectar ">" y "&"
+    // Tokenizar la línea para obtener los argumentos y detectar ">"
     char *comando = strtok(texto, " ");
-    int contador = 0;
-    int cuentamper = 1;
-
     while (comando != NULL) {
-        if (strcmp(comando, ">") == 0 && contador > 0) {
+        if (strcmp(comando, ">") == 0) {
             redirigir_salida = true;
             comando = strtok(NULL, " ");
             if (comando == NULL || strtok(NULL, " ") != NULL) {
                 fprintf(stderr, "%s", error_message);
-                exit(1);
+                return;
             }
             archivo_salida = comando;
             break;
-        } else if (strcmp(comando, "&") == 0 && contador > 0) {
-            cuentamper++;
         } else {
             argayu[i++] = comando;
         }
         comando = strtok(NULL, " ");
-        contador++;
     }
     argayu[i] = NULL;
 
-    if (argayu[0] == NULL) return; // No hay comando
+    if (argayu[0] == NULL) return;
 
-    // Crear un proceso hijo para cada comando
-    for (int j = 0; j < cuentamper; j++) {
+    // Crear proceso hijo
+    if (fork() == 0) { // Proceso hijo
+        if (redirigir_salida) {
+            int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                fprintf(stderr, "%s", error_message);
+                exit(1);
+            }
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+        execvp(argayu[0], argayu);
+        fprintf(stderr, "%s", error_message);
+        exit(1);
+    }
+}
+
+void ejecutacomandos(char *texto) {
+    char *comando;
+    char *resto = texto;
+    pid_t pids[128]; // Almacena los pids de los procesos hijos
+    int count = 0;
+
+    while ((comando = strsep(&resto, "&")) != NULL) {
+        if (strlen(comando) == 0) continue;
+
         pid_t pid = fork();
         if (pid == 0) { // Proceso hijo
-            if (redirigir_salida) {
-                int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_APPEND, 0644);
-                if (fd < 0) {
-                    fprintf(stderr, "%s", error_message);
-                    exit(1);
-                }
-                dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
-                close(fd);
-            }
-
-            execvp(argayu[0], argayu);
-            fprintf(stderr, "%s", error_message); // Si execvp falla
-            exit(1);
+            ejecutacomando(comando);
+            exit(0);
         } else if (pid < 0) {
             fprintf(stderr, "%s", error_message);
-            exit(1);
+        } else {
+            pids[count++] = pid;
         }
     }
 
-    // Esperar a todos los hijos al final
-    while (wait(NULL) > 0);
+    // Esperar a todos los hijos
+    for (int i = 0; i < count; i++) {
+        waitpid(pids[i], NULL, 0);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -102,7 +111,7 @@ int main(int argc, char *argv[]) {
             fflush(stdout);
 
             nread = getline(&texto, &line, stdin);
-            if (nread == -1) break; // Detectar EOF
+            if (nread == -1) break;
 
             if (strcmp(texto, "exit\n") == 0) {
                 free(texto);
@@ -140,3 +149,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
