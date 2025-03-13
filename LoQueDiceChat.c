@@ -8,13 +8,11 @@
 
 char error_message[] = "An error has occurred\n";
 
-// Función para ejecutar un solo comando
 void ejecutar_comando(char *comando, bool redirigir_salida, char *archivo_salida) {
     char *argayu[12] = {NULL};
     int i = 0;
-    
-    // Tokenizar la línea del comando
     char *token = strtok(comando, " ");
+
     while (token != NULL) {
         argayu[i++] = token;
         token = strtok(NULL, " ");
@@ -25,58 +23,59 @@ void ejecutar_comando(char *comando, bool redirigir_salida, char *archivo_salida
 
     pid_t pid = fork();
     if (pid == 0) { // Proceso hijo
-        // Redirección de salida
         if (redirigir_salida) {
             int fd = open(archivo_salida, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
-                fprintf(stderr, "%s", error_message);
-                exit(0);
+                perror("Error al abrir archivo de salida");
+                exit(1);
             }
             dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
             close(fd);
         }
 
         execvp(argayu[0], argayu);
-        fprintf(stderr, "%s", error_message); // Si execvp falla
-        exit(0);
-    } else if (pid > 0) { // Proceso padre
-        int status;
-        waitpid(pid, &status, 0);
-    } else {
-        fprintf(stderr, "%s", error_message);
-        exit(0);
+        perror("Error al ejecutar comando"); // Si execvp falla
+        exit(1);
+    } else if (pid < 0) {
+        perror("Error al crear proceso hijo");
+        exit(1);
     }
 }
 
-// Función para contar cuántos comandos paralelos hay (por los ampersands '&') y procesar los comandos
-void cuenta_comandos(char *texto) {
+void ejecutacomandos(char *texto) {
     char *comando = strtok(texto, "&");
-    int cuentamper = 0; // Contador de comandos paralelos
+    int cuentamper = 0;
     bool redirigir_salida = false;
     char *archivo_salida = NULL;
 
-    // Iterar sobre los comandos en paralelo
     while (comando != NULL) {
         cuentamper++;
 
-        // Verificar redirección de salida
+        // Verificar si hay redirección
         char *redir_out = strstr(comando, ">");
         if (redir_out != NULL) {
             redirigir_salida = true;
-            *redir_out = '\0'; // Eliminar el ">" para que el archivo quede después
+            *redir_out = '\0'; // Eliminar ">" de la cadena
             comando = strtok(NULL, " ");
             if (comando != NULL) {
                 archivo_salida = comando;
             }
         }
 
-        // Ejecutar el comando con la información recopilada
+        // Crear un proceso hijo para ejecutar el comando
         ejecutar_comando(comando, redirigir_salida, archivo_salida);
 
-        // Resetear los flags para el siguiente comando
+        // Resetear valores para el siguiente comando
         redirigir_salida = false;
         archivo_salida = NULL;
-        comando = strtok(NULL, "&"); // Obtener el siguiente comando
+
+        // Pasar al siguiente comando
+        comando = strtok(NULL, "&");
+    }
+
+    // Esperar a que todos los procesos hijos terminen
+    for (int i = 0; i < cuentamper; i++) {
+        wait(NULL);
     }
 }
 
@@ -98,7 +97,7 @@ int main(int argc, char *argv[]) {
                 exit(0);
             }
 
-            cuenta_comandos(texto);  // Llamar a cuenta_comandos para procesar la línea
+            ejecutacomandos(texto);
         }
         free(texto);
     } else if (argc == 2) { // Modo batch (archivo de comandos)
@@ -117,7 +116,7 @@ int main(int argc, char *argv[]) {
                 fclose(fichero);
                 exit(0);
             }
-            cuenta_comandos(texto);  // Llamar a cuenta_comandos para procesar la línea
+            ejecutacomandos(texto);
         }
 
         free(texto);
@@ -129,5 +128,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
 
