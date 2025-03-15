@@ -1,0 +1,205 @@
+Por ejemplo para crea un nuevo directorio usar el comando 
+strcmp(argumento1 a comparar, argumento 2 a comparar) Devueleve 0 si son iguales y sino otra cosa.
+strstr: busca una subcadena dentro de una cadena.
+chdir, cambia de directorio al que tú quieras (Esta usado en el programa)
+1. strcpy
+Prototipo: char *strcpy(char *destino, const char *origen);
+
+Copia una cadena de caracteres de origen a destino. No realiza ninguna comprobación de desbordamiento de búfer, por lo que debes asegurarte de que destino tiene suficiente espacio para almacenar la copia.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char destino[50];
+strcpy(destino, "Hola Mundo");
+2. strncpy
+Prototipo: char *strncpy(char *destino, const char *origen, size_t n);
+
+Copia hasta n caracteres de origen a destino. Si origen tiene menos de n caracteres, destino se rellena con '\0' (carácter nulo) hasta completar n.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char destino[50];
+strncpy(destino, "Hola", 5);
+3. strcat
+Prototipo: char *strcat(char *destino, const char *origen);
+
+Concadena (une) la cadena origen al final de la cadena destino. La cadena destino debe tener suficiente espacio para acomodar el contenido de ambas cadenas.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char destino[50] = "Hola";
+strcat(destino, " Mundo");
+4. strncat
+Prototipo: char *strncat(char *destino, const char *origen, size_t n);
+
+Concadena hasta n caracteres de la cadena origen al final de destino. Al igual que con strncpy, si la longitud de origen es menor que n, se agregan caracteres nulos para completar n.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char destino[50] = "Hola";
+strncat(destino, " Mundo", 3);  // Concatenará " Mun"
+5. strlen
+Prototipo: size_t strlen(const char *str);
+
+Devuelve la longitud de una cadena (sin contar el carácter nulo '\0' que marca el final de la cadena).
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char str[] = "Hola Mundo";
+size_t longitud = strlen(str);  // longitud = 10
+6. strcmp
+Prototipo: int strcmp(const char *str1, const char *str2);
+
+Compara las dos cadenas de caracteres. Devuelve:
+
+Un valor negativo si str1 es menor que str2.
+0 si str1 y str2 son iguales.
+Un valor positivo si str1 es mayor que str2.
+Ejemplo:
+
+c
+Copiar
+Editar
+int resultado = strcmp("Hola", "Hola");  // resultado = 0
+7. strncmp
+Prototipo: int strncmp(const char *str1, const char *str2, size_t n);
+
+Compara los primeros n caracteres de las cadenas str1 y str2. El comportamiento es el mismo que strcmp, pero solo hasta el carácter n.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+int resultado = strncmp("Hola", "Holz", 4);  // resultado = 0
+8. strchr
+Prototipo: char *strchr(const char *str, int c);
+
+Busca la primera ocurrencia del carácter c en la cadena str. Devuelve un puntero a esa posición, o NULL si no se encuentra el carácter.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char *pos = strchr("Hola Mundo", 'M');  // pos apunta a 'M'
+9. strrchr
+Prototipo: char *strrchr(const char *str, int c);
+
+Similar a strchr, pero busca la última ocurrencia de c en str.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char *pos = strrchr("Hola Mundo Mundo", 'M');  // pos apunta a la segunda 'M'
+10. strstr
+Prototipo: char *strstr(const char *haystack, const char *needle);
+
+Busca la primera ocurrencia de la cadena needle dentro de la cadena haystack. Devuelve un puntero a la posición de la primera coincidencia, o NULL si no se encuentra.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char *pos = strstr("Hola Mundo", "Mundo");  // pos apunta al inicio de "Mundo"
+11. strtok
+Prototipo: char *strtok(char *str, const char *delimiters);
+
+Divide una cadena en tokens (subcadenas) usando los caracteres de delimiters como separadores. Esta función modifica la cadena original, y se llama varias veces para obtener los siguientes tokens.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char str[] = "Hola Mundo, como estas";
+char *token = strtok(str, " ,");
+while (token != NULL) {
+    printf("%s\n", token);
+    token = strtok(NULL, " ,");
+}
+12. strdup (no estándar, pero comúnmente disponible)
+Prototipo: char *strdup(const char *str);
+
+Crea una nueva cadena que es una copia de str. La memoria para la nueva cadena debe ser liberada con free.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char *copia = strdup("Hola Mundo");
+13. strspn
+Prototipo: size_t strspn(const char *str, const char *accept);
+
+Devuelve la longitud del prefijo inicial de str que contiene solo caracteres presentes en la cadena accept.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+size_t longitud = strspn("123abc", "123");  // longitud = 3
+14. strcspn
+Prototipo: size_t strcspn(const char *str, const char *reject);
+
+Devuelve la longitud del prefijo inicial de str que no contiene ninguno de los caracteres presentes en reject.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+size_t longitud = strcspn("123abc", "abc");  // longitud = 3
+15. strpbrk
+Prototipo: char *strpbrk(const char *str, const char *accept);
+
+Devuelve un puntero al primer carácter de str que se encuentra en accept. Si no se encuentra, devuelve NULL.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char *pos = strpbrk("Hola Mundo", "aeiou");  // pos apunta a 'o'
+16. strcoll
+Prototipo: int strcoll(const char *str1, const char *str2);
+
+Compara dos cadenas de acuerdo con las reglas de comparación de cadenas locales (basadas en el idioma y la cultura del sistema).
+
+Ejemplo:
+
+c
+Copiar
+Editar
+int resultado = strcoll("hola", "Hola");  // Puede ser diferente dependiendo de la configuración regional
+17. strxfrm
+Prototipo: size_t strxfrm(char *dest, const char *src, size_t n);
+
+Transforma la cadena src en una forma comparable (según las reglas locales) y la copia en dest. La longitud máxima copiada es n.
+
+Ejemplo:
+
+c
+Copiar
+Editar
+char resultado[50];
+strxfrm(resultado, "Hola", 50);
